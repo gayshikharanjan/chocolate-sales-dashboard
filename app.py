@@ -2,151 +2,130 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# ===============================
+# --------------------------------------------------
 # PAGE CONFIG
-# ===============================
+# --------------------------------------------------
 st.set_page_config(
     page_title="Chocolate Sales Dashboard",
     page_icon="🍫",
     layout="wide"
 )
 
-# ===============================
-# CUSTOM CSS (Colorful UI)
-# ===============================
-st.markdown("""
-    <style>
-    .main {
-        background: linear-gradient(to right, #ffecd2, #fcb69f);
-    }
-    .stMetric {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("🍫 Chocolate Sales Dashboard")
-st.markdown("### 📊 Interactive & Creative Data Analysis")
-
-# ===============================
+# --------------------------------------------------
 # LOAD DATA
-# ===============================
-df = pd.read_csv("Chocolatesales.csv")
+# --------------------------------------------------
+df = pd.read_csv("chocolatesales.csv")
+df.columns = df.columns.str.strip()
 
-df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
+if "Date" in df.columns:
+    df["Date"] = pd.to_datetime(df["Date"])
 
-# 🔥 CLEAN Amount column
-df['Amount'] = df['Amount'].replace('[\$,]', '', regex=True).astype(float)
+# --------------------------------------------------
+# SIDEBAR FILTERS
+# --------------------------------------------------
+st.sidebar.header("🔎 Filters")
 
-# ===============================
-# SIDEBAR FILTER
-# ===============================
-st.sidebar.header("🔎 Filter Options")
-
-selected_country = st.sidebar.multiselect(
-    "Select Country",
-    options=df['Country'].unique(),
-    default=df['Country'].unique()
+# Product Filter
+product_filter = st.sidebar.multiselect(
+    "Select Product",
+    options=df["Product"].unique(),
+    default=df["Product"].unique()
 )
 
-filtered_df = df[df['Country'].isin(selected_country)]
+# Country Filter
+country_filter = st.sidebar.multiselect(
+    "Select Country",
+    options=df["Country"].unique(),
+    default=df["Country"].unique()
+)
 
-# ===============================
-# KPI METRICS
-# ===============================
-total_sales = filtered_df['Amount'].sum()
-total_boxes = filtered_df['Boxes Shipped'].sum()
-total_transactions = len(filtered_df)
+# Date Filter
+if "Date" in df.columns:
+    date_filter = st.sidebar.date_input(
+        "Select Date Range",
+        [df["Date"].min(), df["Date"].max()]
+    )
+
+# --------------------------------------------------
+# APPLY FILTERS
+# --------------------------------------------------
+filtered_df = df[
+    (df["Product"].isin(product_filter)) &
+    (df["Country"].isin(country_filter))
+]
+
+if "Date" in df.columns:
+    filtered_df = filtered_df[
+        (filtered_df["Date"] >= pd.to_datetime(date_filter[0])) &
+        (filtered_df["Date"] <= pd.to_datetime(date_filter[1]))
+    ]
+
+# --------------------------------------------------
+# TITLE
+# --------------------------------------------------
+st.title("🍫 Chocolate Sales Dashboard")
+st.markdown("---")
+
+# --------------------------------------------------
+# KPI SECTION
+# --------------------------------------------------
+total_revenue = filtered_df["Revenue"].sum()
+total_units = filtered_df["Units Sold"].sum()
+avg_revenue = filtered_df["Revenue"].mean()
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("💰 Total Sales", f"${total_sales:,.0f}")
-col2.metric("📦 Boxes Shipped", f"{total_boxes:,}")
-col3.metric("🧾 Transactions", total_transactions)
+col1.metric("Total Revenue", f"₹ {total_revenue:,.0f}")
+col2.metric("Total Units Sold", f"{total_units:,.0f}")
+col3.metric("Average Revenue", f"₹ {avg_revenue:,.0f}")
 
 st.markdown("---")
 
-# ===============================
-# BAR CHART
-# ===============================
-st.subheader("🌍 Total Sales by Country")
+# --------------------------------------------------
+# CHART 1 - Revenue by Product
+# --------------------------------------------------
+st.subheader("Revenue by Product")
 
-sales_country = filtered_df.groupby('Country')['Amount'].sum().reset_index()
-
-fig1 = px.bar(
-    sales_country,
-    x="Country",
-    y="Amount",
-    color="Country",
-    template="plotly_dark"
-)
-
-st.plotly_chart(fig1, use_container_width=True)
-
-# ===============================
-# PIE CHART
-# ===============================
-st.subheader("🍬 Sales Distribution by Product")
-
-sales_product = filtered_df.groupby('Product')['Amount'].sum().reset_index()
-
-fig2 = px.pie(
-    sales_product,
-    names="Product",
-    values="Amount",
-    color_discrete_sequence=px.colors.sequential.Rainbow
-)
-
-st.plotly_chart(fig2, use_container_width=True)
-
-# ===============================
-# HISTOGRAM
-# ===============================
-st.subheader("📊 Sales Amount Distribution")
-
-fig3 = px.histogram(
+product_chart = px.bar(
     filtered_df,
-    x="Amount",
-    nbins=15,
-    color_discrete_sequence=["#ff4b4b"]
+    x="Product",
+    y="Revenue",
+    color="Product",
 )
 
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(product_chart, use_container_width=True)
 
-# ===============================
-# SCATTER PLOT
-# ===============================
-st.subheader("📦 Boxes Shipped vs Sales Amount")
+# --------------------------------------------------
+# CHART 2 - Revenue by Country
+# --------------------------------------------------
+st.subheader("Revenue by Country")
 
-fig4 = px.scatter(
+country_chart = px.pie(
     filtered_df,
-    x="Boxes Shipped",
-    y="Amount",
-    color="Country",
-    size="Amount",
-    template="plotly_white"
+    names="Country",
+    values="Revenue",
 )
 
-st.plotly_chart(fig4, use_container_width=True)
+st.plotly_chart(country_chart, use_container_width=True)
 
-# ===============================
-# LINE CHART
-# ===============================
-st.subheader("📈 Sales Trend Over Time")
+# --------------------------------------------------
+# CHART 3 - Sales Trend
+# --------------------------------------------------
+if "Date" in df.columns:
+    st.subheader("Revenue Trend Over Time")
 
-sales_time = filtered_df.groupby('Date')['Amount'].sum().reset_index()
+    trend_data = filtered_df.groupby("Date")["Revenue"].sum().reset_index()
 
-fig5 = px.line(
-    sales_time,
-    x="Date",
-    y="Amount",
-    markers=True,
-    color_discrete_sequence=["#6a11cb"]
-)
+    trend_chart = px.line(
+        trend_data,
+        x="Date",
+        y="Revenue",
+    )
 
-st.plotly_chart(fig5, use_container_width=True)
+    st.plotly_chart(trend_chart, use_container_width=True)
 
-st.success("🚀 EDA Completed Successfully!")
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+st.markdown("---")
+st.caption("Built with Streamlit 🚀 | Corporate Sales Dashboard")
