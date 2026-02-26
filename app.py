@@ -14,7 +14,7 @@ st.set_page_config(
 # --------------------------------------------------
 # LOAD DATA
 # --------------------------------------------------
-df = pd.read_csv("chocolatesales.csv")
+df = pd.read_csv("DATASETT/Chocolatesales.csv")
 df.columns = df.columns.str.strip()
 
 if "Date" in df.columns:
@@ -129,3 +129,5 @@ if "Date" in df.columns:
 # --------------------------------------------------
 st.markdown("---")
 st.caption("Built with Streamlit 🚀 | Corporate Sales Dashboard")
+import os
+st.write(os.listdir())
