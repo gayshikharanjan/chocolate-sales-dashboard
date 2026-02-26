@@ -2,132 +2,111 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --------------------------------------------------
+# -----------------------------
 # PAGE CONFIG
-# --------------------------------------------------
-st.set_page_config(
-    page_title="Chocolate Sales Dashboard",
-    page_icon="🍫",
-    layout="wide"
-)
+# -----------------------------
+st.set_page_config(page_title="🍫 Chocolate Sales Dashboard",
+                   page_icon="🍫",
+                   layout="wide")
 
-# --------------------------------------------------
+st.title("🍫 Chocolate Sales Dashboard")
+st.markdown("### Interactive & Creative Sales Analysis")
+
+# -----------------------------
 # LOAD DATA
-# --------------------------------------------------
-df = pd.read_csv("DATASETT/Chocolatesales.csv")
-df.columns = df.columns.str.strip()
+# -----------------------------
+@st.cache_data
+def load_data():
+    df = pd.read_csv("Chocolatesales.csv")   # Make sure name matches exactly
+    df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
 
-if "Date" in df.columns:
-    df["Date"] = pd.to_datetime(df["Date"])
+    # Clean Amount column if it has $
+    df['Amount'] = (
+        df['Amount']
+        .replace('[\$,]', '', regex=True)
+        .astype(float)
+    )
+    return df
 
-# --------------------------------------------------
+df = load_data()
+
+# -----------------------------
 # SIDEBAR FILTERS
-# --------------------------------------------------
-st.sidebar.header("🔎 Filters")
+# -----------------------------
+st.sidebar.header("🔎 Filter Data")
 
-# Product Filter
-product_filter = st.sidebar.multiselect(
-    "Select Product",
-    options=df["Product"].unique(),
-    default=df["Product"].unique()
-)
-
-# Country Filter
 country_filter = st.sidebar.multiselect(
     "Select Country",
-    options=df["Country"].unique(),
-    default=df["Country"].unique()
+    options=df['Country'].unique(),
+    default=df['Country'].unique()
 )
 
-# Date Filter
-if "Date" in df.columns:
-    date_filter = st.sidebar.date_input(
-        "Select Date Range",
-        [df["Date"].min(), df["Date"].max()]
-    )
+product_filter = st.sidebar.multiselect(
+    "Select Product",
+    options=df['Product'].unique(),
+    default=df['Product'].unique()
+)
 
-# --------------------------------------------------
-# APPLY FILTERS
-# --------------------------------------------------
 filtered_df = df[
-    (df["Product"].isin(product_filter)) &
-    (df["Country"].isin(country_filter))
+    (df['Country'].isin(country_filter)) &
+    (df['Product'].isin(product_filter))
 ]
 
-if "Date" in df.columns:
-    filtered_df = filtered_df[
-        (filtered_df["Date"] >= pd.to_datetime(date_filter[0])) &
-        (filtered_df["Date"] <= pd.to_datetime(date_filter[1]))
-    ]
-
-# --------------------------------------------------
-# TITLE
-# --------------------------------------------------
-st.title("🍫 Chocolate Sales Dashboard")
-st.markdown("---")
-
-# --------------------------------------------------
+# -----------------------------
 # KPI SECTION
-# --------------------------------------------------
-total_revenue = filtered_df["Revenue"].sum()
-total_units = filtered_df["Units Sold"].sum()
-avg_revenue = filtered_df["Revenue"].mean()
-
+# -----------------------------
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Total Revenue", f"₹ {total_revenue:,.0f}")
-col2.metric("Total Units Sold", f"{total_units:,.0f}")
-col3.metric("Average Revenue", f"₹ {avg_revenue:,.0f}")
+col1.metric("💰 Total Sales", f"${filtered_df['Amount'].sum():,.0f}")
+col2.metric("📦 Total Boxes", f"{filtered_df['Boxes Shipped'].sum():,}")
+col3.metric("🌍 Countries", filtered_df['Country'].nunique())
 
-st.markdown("---")
+st.divider()
 
-# --------------------------------------------------
-# CHART 1 - Revenue by Product
-# --------------------------------------------------
-st.subheader("Revenue by Product")
+# -----------------------------
+# BAR CHART
+# -----------------------------
+sales_country = filtered_df.groupby("Country")["Amount"].sum().reset_index()
 
-product_chart = px.bar(
-    filtered_df,
-    x="Product",
-    y="Revenue",
-    color="Product",
+fig_bar = px.bar(
+    sales_country,
+    x="Country",
+    y="Amount",
+    color="Country",
+    title="🌍 Total Sales by Country",
+    template="plotly_dark"
 )
 
-st.plotly_chart(product_chart, use_container_width=True)
+st.plotly_chart(fig_bar, use_container_width=True)
 
-# --------------------------------------------------
-# CHART 2 - Revenue by Country
-# --------------------------------------------------
-st.subheader("Revenue by Country")
+# -----------------------------
+# PIE CHART
+# -----------------------------
+sales_product = filtered_df.groupby("Product")["Amount"].sum().reset_index()
 
-country_chart = px.pie(
-    filtered_df,
-    names="Country",
-    values="Revenue",
+fig_pie = px.pie(
+    sales_product,
+    names="Product",
+    values="Amount",
+    title="🍫 Sales Distribution by Product",
+    hole=0.4
 )
 
-st.plotly_chart(country_chart, use_container_width=True)
+st.plotly_chart(fig_pie, use_container_width=True)
 
-# --------------------------------------------------
-# CHART 3 - Sales Trend
-# --------------------------------------------------
-if "Date" in df.columns:
-    st.subheader("Revenue Trend Over Time")
+# -----------------------------
+# LINE CHART
+# -----------------------------
+sales_time = filtered_df.groupby("Date")["Amount"].sum().reset_index()
 
-    trend_data = filtered_df.groupby("Date")["Revenue"].sum().reset_index()
+fig_line = px.line(
+    sales_time,
+    x="Date",
+    y="Amount",
+    title="📈 Sales Trend Over Time",
+    markers=True
+)
 
-    trend_chart = px.line(
-        trend_data,
-        x="Date",
-        y="Revenue",
-    )
+st.plotly_chart(fig_line, use_container_width=True)
 
-    st.plotly_chart(trend_chart, use_container_width=True)
-
-# --------------------------------------------------
-# FOOTER
-# --------------------------------------------------
-st.markdown("---")
-st.caption("Built with Streamlit 🚀 | Corporate Sales Dashboard")
-import os
-st.write(os.listdir())
+st.success("✅ Dashboard Loaded Successfully!")
